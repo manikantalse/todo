@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>To Dos</title>
+    <link rel="icon" href="./icon.png" />
+    <link rel="stylesheet" href="./jquery/jquery-ui.css" />
+    <link rel="stylesheet" href="./fa/css/font-awesome.min.css" />
+    <style>
+      ul {
+        font-family: cursive;
+        list-style-type: none;
+        margin: 0;
+        padding: 0;
+        margin-bottom: 10px;
+      }
+      li {
+        margin: 5px;
+        padding: 5px;
+        width: 510px;
+        cursor: default;
+      }
+
+      input {
+        outline-style: none;
+        width: 400px;
+      }
+      i.fa.fa-trash:hover {
+        color: red;
+      }
+      .fa-green-color {
+        color: limegreen;
+      }
+    </style>
+    <script src="./jquery/external/jquery/jquery.js"></script>
+    <script src="./jquery/jquery-ui.js"></script>
+    <script>
+      $(function() {
+        /* jquery ui drag and drop stuff */
+        $("#sortable").sortable({
+          revert: true,
+          start: function(e, ui) {
+            ui.item.startIndex = ui.item.index();
+          },
+          update: function(e, ui) {
+            let from = ui.item.startIndex;
+            let to = ui.item.index();
+            updateItemPosition(from, to);
+          }
+        });
+        $("#draggable").draggable({
+          connectToSortable: "#sortable",
+          helper: "clone",
+          revert: "invalid"
+        });
+
+        $("ul, li").disableSelection();
+
+        /* getData and add them to list here */
+        let data_object = getData();
+        let items = data_object.items;
+
+        for (let i = items.length - 1; i >= 0; i--) {
+          addItemToPage(items[i]);
+        }
+
+        let elements = document.getElementById("sortable").children;
+
+        for (let i = 0; i < elements.length; i++) {
+          let progress = getPercentage(items[i].text);
+          if (progress)
+            setItemPercentage(elements[i], (progress[0] / progress[1]) * 100);
+        }
+
+        /* event handlers */
+        $("#btn-to-do").click(() => {
+          addItemAndSave({ text: "Untitled to do !", checked: false });
+          $(".display")
+            .first()
+            .dblclick();
+        });
+
+        $(document).on("dblclick", ".checkbox", function(e) {
+          e.stopPropagation();
+        });
+
+        $(document).on("click", ".checkbox", function(e) {
+          let parent = $(e.target).parent();
+          let index = parent.closest("li").index();
+          let checked = parent[0].getAttribute("checked") == "true";
+          checked = !checked;
+
+          if (checked) {
+            parent[0].setAttribute("checked", "true");
+            parent.children("i").removeClass("fa-square-o");
+            parent.children("i").addClass("fa-green-color");
+            parent.children("i").addClass("fa-check-square-o");
+          } else {
+            parent[0].setAttribute("checked", "false");
+            parent.children("i").removeClass("fa-check-square-o");
+            parent.children("i").removeClass("fa-green-color");
+            parent.children("i").addClass("fa-square-o");
+          }
+
+          updateItemCheck(index, checked);
+        });
+
+        $(document).on("click", ".fa.fa-trash", function() {
+          let element = $(this).closest("li");
+          deleteItem(element.index());
+          element.remove();
+        });
+
+        $(document).on("keydown", "input", function(e) {
+          if (e.keyCode == 65 && e.ctrlKey) {
+            e.target.select();
+          } else if (e.keyCode == 13) {
+            let element = $(e.target).closest("li");
+            let index = element.index();
+            updateItemValue(index, e.target.value);
+
+            let text = e.target.value;
+            let progress = getPercentage(text);
+            let percentage = 0;
+            if (progress) percentage = (progress[0] / progress[1]) * 100;
+            setItemPercentage(element[0], percentage);
+
+            $(e.target).focusout();
+          }
+        });
+
+        $(document).on("dblclick", ".display", function() {
+          editItemContent.apply(this);
+        });
+
+        $(document).on("focusout", ".edit", function() {
+          $(this)
+            .hide()
+            .siblings(".display")
+            .show()
+            .children(".text-display")
+            .text($(this).val());
+        });
+
+        /* inner functions */
+        function editItemContent() {
+          $(this)
+            .hide()
+            .siblings(".edit")
+            .show()
+            .val(
+              $(this)
+                .text()
+                .trim()
+            )
+            .focus()
+            .select();
+        }
+
+        function getPercentage(percentageText) {
+          let result = percentageText.match(
+            /\(\s*\d+(\.\d+)?\s*\/\s*\d+(\.\d+)?\s*\)/
+          );
+          if (result) {
+            result = result[0];
+            result = result.substring(1, result.length - 1).split("\/");
+            return [parseFloat(result[0]), parseFloat(result[1])];
+          }
+          return null;
+        }
+
+        function setItemPercentage(item, percentage) {
+          let element = $(item);
+          element.css(
+            "background-image",
+            `linear-gradient(to right, rgb(184 239 161) ${percentage}%, rgb(246, 246, 246) 0%)`
+          );
+        }
+
+        // fa fa-check-square-o
+        // fa fa-square-o
+        // window.fff = addItemAndSave;
+        function addItemToPage(itemContent) {
+          $("#sortable").prepend(`
+          <li class="ui-state-default">
+            <div class="display">
+              <span class="checkbox" style="float: left;" checked='${
+                itemContent.checked ? "true" : "false"
+              }' >
+                <i class='fa fa${
+                  itemContent.checked ? "-check" : ""
+                }-square-o${itemContent.checked ? " fa-green-color" : ""}' aria-hidden="true"></i>
+              </span>
+              <span class="text-display">${itemContent.text}</span>
+              <span style="float: right;">
+                <i class="fa fa-trash" aria-hidden="true"></i>
+              </span>
+            </div>
+            <input
+              style="border: none;background: transparent;font-weight: normal;color: #454545;display: none;"
+              type="text"
+              class="edit"
+            />
+          </li>`);
+        }
+
+        function addItemAndSave(itemContent) {
+          addItemToPage(itemContent);
+          items.splice(0, 0, itemContent);
+          save();
+        }
+
+        function updateItemCheck(index, itemChecked) {
+          items[index].checked = itemChecked;
+          save();
+        }
+
+        function updateItemValue(index, itemContent) {
+          items[index].text = itemContent;
+          save();
+        }
+
+        function updateItemPosition(from, to) {
+          items.splice(to, 0, items.splice(from, 1)[0]);
+          save();
+        }
+
+        function deleteItem(from) {
+          items.splice(from, 1);
+          save();
+        }
+
+        function save() {
+          setData(data_object);
+        }
+      });
+
+      /* outer functions */
+      function getData() {
+        return JSON.parse(localStorage.getItem("to-dos-data")) || { items: [] };
+      }
+
+      function setData(data_object) {
+        localStorage.setItem("to-dos-data", JSON.stringify(data_object));
+      }
+    </script>
+  </head>
+  <body>
+    <div style="text-align: -webkit-center;">
+      <div>
+        <button
+          id="btn-to-do"
+          class="ui-button ui-widget ui-corner-all"
+          style="font-family: cursive;outline-style: none;"
+        >
+          New To Do
+        </button>
+        <br />
+        <br />
+        <ul id="sortable">
+          <!-- <li class="ui-state-default">
+            <div class="display">
+              <span class="text-display">Hey there</span>
+              <span style="float: right;">
+                <i class="fa fa-trash" aria-hidden="true"></i>
+              </span>
+            </div>
+            <input
+              style="border: none;background: #f6f6f6;font-weight: normal;color: #454545;display: none;"
+              type="text"
+              class="edit"
+            />
+          </li> -->
+        </ul>
+      </div>
+    </div>
+  </body>
+</html>
